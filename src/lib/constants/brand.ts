@@ -33,4 +33,9 @@ export const BRAND = {
     whatsapp: "https://wa.me/ict101",
     telegram: "https://t.me/ict101",
   },
+
+  /** Payment support contact links */
+  payment: {
+    whatsappChat: "https://wa.me/message/5EYTQ2WWBKOOK1",
+  },
 } as const;

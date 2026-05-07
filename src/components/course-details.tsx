@@ -3,9 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/context/language-context";
+import { getTranslations } from "@/locales";
+import { coursesContent } from "@/locales/en/courses";
 import { CourseDetailsResponse } from "@/lib/types/courses";
 import { purchasesApi } from "@/lib/services/api/purchases";
 import { createClient } from "@/lib/services/auth/client";
+import { BRAND } from "@/lib/constants/brand";
 
 interface CourseDetailClientProps {
   course: CourseDetailsResponse;
@@ -14,6 +17,7 @@ interface CourseDetailClientProps {
 export default function CourseOverview({ course }: CourseDetailClientProps) {
   const router = useRouter();
   const { language } = useLanguage();
+  const t = (getTranslations('courses', language) as typeof coursesContent).details;
   const [showFullOverview, setShowFullOverview] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
@@ -21,9 +25,6 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentOption, setPaymentOption] = useState<'module' | 'platform' | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'bank' | null>(null);
-  const [paymentId, setPaymentId] = useState('');
-  const [copiedPaymentId, setCopiedPaymentId] = useState(false);
-  const [isFetchingRef, setIsFetchingRef] = useState(false);
 
   const resetModalState = () => {
     setShowPurchaseModal(false);
@@ -31,34 +32,13 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
     setIsProcessing(false);
     setPaymentOption(null);
     setPaymentMethod(null);
-    setPaymentId('');
-    setCopiedPaymentId(false);
-    setIsFetchingRef(false);
   };
 
   const openPurchaseModal = (productId: string) => {
     setSelectedProductId(productId);
     setPaymentOption(null);
     setPaymentMethod(null);
-    setPaymentId('');
-    setCopiedPaymentId(false);
-    setIsFetchingRef(false);
     setShowPurchaseModal(true);
-  };
-
-  const fetchBankPaymentRef = async (transferType: 'one-time' | 'subscription') => {
-    if (!selectedProductId || isFetchingRef) return;
-    setIsFetchingRef(true);
-    try {
-      const { payment_reference } = await purchasesApi.createBankPaymentOrder({
-        product_id: selectedProductId,
-        transfer_type: transferType,
-      });
-      setPaymentId(payment_reference);
-    } catch (error) {
-      console.error('Failed to generate payment reference:', error);
-      setIsFetchingRef(false);
-    }
   };
 
   const togglePaymentOption = (option: 'module' | 'platform') => {
@@ -90,12 +70,6 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
       console.error('Failed to create order:', error);
       setIsProcessing(false);
     }
-  };
-
-  const copyPaymentId = async () => {
-    await navigator.clipboard.writeText(paymentId);
-    setCopiedPaymentId(true);
-    setTimeout(() => setCopiedPaymentId(false), 2000);
   };
 
   const toggleSection = (index: number) => {
@@ -171,7 +145,7 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
                   onClick={() => setShowFullOverview(!showFullOverview)}
                   className="text-purple-400 hover:text-purple-300 text-sm font-semibold mt-2 transition-colors"
                 >
-                  {showFullOverview ? "See less" : "See more"}
+                  {showFullOverview ? t.seeLess : t.seeMore}
                 </button>
               )}
             </div>
@@ -181,7 +155,7 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
               <div className="px-4 py-2 bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/40 rounded-full flex items-center gap-2">
                 <span className="text-xl">📚</span>
                 <span className="font-semibold text-white">{course.totalModules}</span>
-                <span className="text-gray-300 text-sm">Modules</span>
+                <span className="text-gray-300 text-sm">{t.modules}</span>
               </div>
             </div>
           </div>
@@ -274,7 +248,7 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
 
         {/* Course Content Card */}
         <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 sm:p-8">
-          <h3 className="text-2xl md:text-3xl font-bold text-white mb-6">Course Content</h3>
+          <h3 className="text-2xl md:text-3xl font-bold text-white mb-6">{t.courseContent}</h3>
           <div className="space-y-3">
             {course.modules.map((module, moduleIndex) => (
               <div
@@ -296,7 +270,7 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-gray-400">
-                      {module.videoCount} videos • {module.duration} min
+                      {module.videoCount} {t.videos} • {module.duration} {t.min}
                     </span>
                     {module.isPurchased ? (
                       <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -327,8 +301,10 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
                             {video.title}
                           </span>
                         </div>
-                        <span className="text-xs text-gray-500">
-                          Video {video.lessonId}
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-500/30 border border-purple-500/40 shrink-0">
+                          <svg className="w-3 h-3 text-purple-300" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
                         </span>
                       </button>
                     ))}
@@ -340,14 +316,14 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
                           onClick={() => navigateToModule(module.id)}
                           className="glow-on-hover !border-white/30 text-white px-6 py-2 rounded-full font-semibold text-sm transition-all duration-300 hover:scale-105"
                         >
-                          Start Learning
+                          {t.startLearning}
                         </button>
                       ) : (
                         <button
                           onClick={() => openPurchaseModal(module.productId)}
                           className="glow-on-hover !border-white/30 text-white px-6 py-2 rounded-full font-semibold text-sm transition-all duration-300 hover:scale-105"
                         >
-                          Buy Now
+                          {t.buyNow}
                         </button>
                       )}
                     </div>
@@ -369,8 +345,8 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
           <div className="relative bg-gray-900 border border-white/20 rounded-2xl p-6 sm:p-8 max-w-xl w-full max-h-[90vh] overflow-y-auto scrollbar-hide">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-xl font-bold text-white">Get Access</h3>
-                <p className="text-sm text-gray-400 mt-1">Choose how you want to access this content</p>
+                <h3 className="text-xl font-bold text-white">{t.modal.title}</h3>
+                <p className="text-sm text-gray-400 mt-1">{t.modal.subtitle}</p>
               </div>
               <button
                 onClick={resetModalState}
@@ -395,8 +371,8 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
                     </svg>
                   </div>
                   <div className="flex-1">
-                    <p className="text-white font-semibold">Buy This Module</p>
-                    <p className="text-sm text-gray-400">One-time purchase for this module only</p>
+                    <p className="text-white font-semibold">{t.modal.buyModule}</p>
+                    <p className="text-sm text-gray-400">{t.modal.buyModuleDesc}</p>
                   </div>
                   <svg className={`w-5 h-5 text-gray-400 transition-transform ${paymentOption === 'module' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -417,8 +393,8 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
                           </svg>
                         </div>
                         <div className="flex-1">
-                          <p className="text-white text-sm font-medium">Card Payment</p>
-                          <p className="text-xs text-gray-500">Credit or debit card</p>
+                          <p className="text-white text-sm font-medium">{t.modal.cardPayment}</p>
+                          <p className="text-xs text-gray-500">{t.modal.cardPaymentDesc}</p>
                         </div>
                         <svg className={`w-4 h-4 text-gray-500 transition-transform ${paymentMethod === 'card' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -427,13 +403,14 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
 
                       {paymentMethod === 'card' && (
                         <div className="px-4 pb-4">
-                          <p className="text-sm text-gray-400 mb-3">You will be redirected to our secure payment gateway.</p>
+                          <p className="text-sm text-gray-400 mb-1">{t.modal.cardRedirect}</p>
+                          <p className="text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-2 py-1 mb-3 inline-block">{t.modal.cardDetailsNotSaved}</p>
                           <button
                             onClick={handleCardPayment}
                             disabled={isProcessing}
                             className="w-full bg-primary-gradient border border-purple-500/30 rounded-lg py-3 text-center font-semibold text-white text-sm transition-all duration-200 hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {isProcessing ? 'Processing...' : 'Proceed to Payment'}
+                            {isProcessing ? t.modal.processing : t.modal.proceedToPayment}
                           </button>
                         </div>
                       )}
@@ -451,8 +428,8 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
                           </svg>
                         </div>
                         <div className="flex-1">
-                          <p className="text-white text-sm font-medium">Bank Transfer</p>
-                          <p className="text-xs text-gray-500">Direct bank transfer</p>
+                          <p className="text-white text-sm font-medium">{t.modal.bankTransfer}</p>
+                          <p className="text-xs text-gray-500">{t.modal.bankTransferDesc}</p>
                         </div>
                         <svg className={`w-4 h-4 text-gray-500 transition-transform ${paymentMethod === 'bank' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -461,89 +438,19 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
 
                       {paymentMethod === 'bank' && (
                         <div className="px-4 pb-4 space-y-3">
-                          {!paymentId ? (
-                            <button
-                              onClick={() => fetchBankPaymentRef('one-time')}
-                              disabled={isFetchingRef}
-                              className="w-full bg-primary-gradient border border-purple-500/30 rounded-lg py-3 text-center font-semibold text-white text-sm transition-all duration-200 hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {isFetchingRef ? 'Generating...' : 'Generate Payment Reference'}
-                            </button>
-                          ) : (
-                            <>
-                              {/* Payment Reference */}
-                              <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
-                                <p className="text-xs text-purple-300 font-medium mb-2">Your Payment Reference</p>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-xl font-bold text-white tracking-wider flex-1">{paymentId}</span>
-                                  <button
-                                    onClick={copyPaymentId}
-                                    className="px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-xs text-white transition-colors flex items-center gap-1.5"
-                                  >
-                                    {copiedPaymentId ? (
-                                      <>
-                                        <svg className="w-3.5 h-3.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                        </svg>
-                                        Copied
-                                      </>
-                                    ) : (
-                                      <>
-                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                        </svg>
-                                        Copy
-                                      </>
-                                    )}
-                                  </button>
-                                </div>
-                                <p className="text-xs text-gray-400 mt-2">Include this as the remark/reference in your pay-in slip</p>
-                              </div>
+                          {/* WhatsApp Chat */}
+                          <a
+                            href={BRAND.payment.whatsappChat}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full bg-green-600/80 hover:bg-green-600 border border-green-500/40 rounded-lg py-3 flex items-center justify-center gap-2 font-semibold text-white text-sm transition-all duration-200 hover:scale-[1.01]"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                            </svg>
+                            {t.modal.whatsappChatButton}
+                          </a>
 
-                              {/* Bank Details */}
-                              <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                                <p className="text-sm text-white font-semibold mb-2">Bank Details</p>
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-400">Bank</span>
-                                    <span className="text-white">Bank of Ceylon</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-400">Account No.</span>
-                                    <span className="text-white">0000 1234 5678</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-400">Holder</span>
-                                    <span className="text-white">StemEdX (Pvt) Ltd</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-400">Branch</span>
-                                    <span className="text-white">Colombo Main Branch</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* QR Codes */}
-                              <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                                <p className="text-sm text-white font-semibold mb-1">Upload Your Pay-in Slip</p>
-                                <p className="text-xs text-gray-400 mb-3">Scan to join and upload your slip for verification</p>
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div className="flex flex-col items-center gap-2">
-                                    <div className="bg-white rounded-lg p-2">
-                                      <img src="/qr-whatsapp.png" alt="WhatsApp Group QR" className="w-24 h-24 object-contain" />
-                                    </div>
-                                    <span className="text-xs text-green-400 font-medium">WhatsApp</span>
-                                  </div>
-                                  <div className="flex flex-col items-center gap-2">
-                                    <div className="bg-white rounded-lg p-2">
-                                      <img src="/qr-telegram.png" alt="Telegram Group QR" className="w-24 h-24 object-contain" />
-                                    </div>
-                                    <span className="text-xs text-blue-400 font-medium">Telegram</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </>
-                          )}
                         </div>
                       )}
                     </div>

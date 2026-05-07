@@ -18,7 +18,13 @@ interface CoursesProps {
 export default function Courses({ isAuthenticated }: CoursesProps) {
   const router = useRouter();
   const { language } = useLanguage();
-  const CONTENT = getTranslations('courses', language) as { header: { title: string; subtitle: string }; card: { browseButton: string } };
+  const CONTENT = getTranslations('courses', language) as { header: { title: string; subtitle: string }; card: { browseButton: string; modules: string; tutorials: string; hours: string; mins: string } };
+
+  const formatDuration = (minutes: number) => {
+    if (minutes < 60) return `${minutes} ${CONTENT.card.mins}`;
+    const h = Math.round(minutes / 60);
+    return `~${h} ${CONTENT.card.hours}`;
+  };
   const [displayCount, setDisplayCount] = useState(12);
   const [courses, setCourses] = useState<CourseWithInstructor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -144,13 +150,13 @@ export default function Courses({ isAuthenticated }: CoursesProps) {
                         {/* Stats row */}
                         <div className="flex flex-wrap gap-3 mb-3 text-xs text-gray-400">
                           <span className="flex items-center gap-1">
-                            <span>📦</span> {course.totalModules} Modules
+                            <span>📦</span> {course.totalModules} {CONTENT.card.modules}
                           </span>
                           <span className="flex items-center gap-1">
-                            <span>🎓</span> {course.tutorialSessions} Tutorials
+                            <span>🎓</span> {course.tutorialSessions} {CONTENT.card.tutorials}
                           </span>
                           <span className="flex items-center gap-1">
-                            <span>⏱️</span> {course.duration}
+                            <span>⏱️</span> {formatDuration(course.duration)}
                           </span>
                         </div>
 

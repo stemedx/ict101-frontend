@@ -138,7 +138,6 @@ export interface ModuleDetailsResponse {
 
 // POST /v1/course-module-videos/progress
 export interface VideoProgressRequest {
-  student_id: string;
   video_id: string;
   is_completed?: boolean;
   notes?: string;

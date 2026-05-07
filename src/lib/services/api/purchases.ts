@@ -2,7 +2,6 @@ import { apiRequest } from './client';
 import { API_CONFIG } from '@/lib/constants/api';
 
 export interface CreateOrderRequest {
-  student_id: string;
   product_id: string;
 }
 

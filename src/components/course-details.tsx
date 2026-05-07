@@ -7,7 +7,6 @@ import { getTranslations } from "@/locales";
 import { coursesContent } from "@/locales/en/courses";
 import { CourseDetailsResponse } from "@/lib/types/courses";
 import { purchasesApi } from "@/lib/services/api/purchases";
-import { createClient } from "@/lib/services/auth/client";
 import { BRAND } from "@/lib/constants/brand";
 
 interface CourseDetailClientProps {
@@ -55,14 +54,7 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
     if (!selectedProductId || isProcessing) return;
     setIsProcessing(true);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/login');
-        return;
-      }
       const { checkout_url } = await purchasesApi.createOrder({
-        student_id: user.id,
         product_id: selectedProductId,
       });
       router.push(checkout_url);

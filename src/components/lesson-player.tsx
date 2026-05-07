@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { createEditor, Editor, Transforms, Element as SlateElement, Descendant, BaseEditor } from "slate";
 import { Slate, Editable, withReact, ReactEditor, RenderElementProps, RenderLeafProps } from "slate-react";
 import { withHistory, HistoryEditor } from "slate-history";
-import { createClient } from "@/lib/services/auth/client";
 import { videoProgressApi } from "@/lib/services/api/video-progress";
 
 type CustomElement = {
@@ -80,16 +79,6 @@ export default function LearnPage({ course, progress, module, courseId, initialL
   // Player.js ref
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Cache user ID to avoid repeated getUser() calls
-  const userIdRef = useRef<string | null>(null);
-
-  const getUserId = useCallback(async (): Promise<string | null> => {
-    if (userIdRef.current) return userIdRef.current;
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) userIdRef.current = user.id;
-    return user?.id ?? null;
-  }, []);
 
   // Slate editor — stable instance; key={currentLessonId} on <Slate> handles remounting
   const editor = useMemo(() => withHistory(withReact(createEditor())), []);
@@ -129,12 +118,9 @@ export default function LearnPage({ course, progress, module, courseId, initialL
     if (completedVideos.has(videoId)) return;
     setIsSaving(true);
     try {
-      const userId = await getUserId();
-      if (!userId) return;
       // Optimistic update
       setCompletedVideos((prev) => new Set(prev).add(videoId));
       await videoProgressApi.saveProgress({
-        student_id: userId,
         video_id: videoId,
         is_completed: true,
       });
@@ -149,7 +135,7 @@ export default function LearnPage({ course, progress, module, courseId, initialL
     } finally {
       setIsSaving(false);
     }
-  }, [completedVideos, getUserId]);
+  }, [completedVideos]);
 
   // Player.js ended event listener (dynamic import to avoid SSR window error)
   useEffect(() => {
@@ -176,8 +162,6 @@ export default function LearnPage({ course, progress, module, courseId, initialL
 
   // Save notes for a specific video
   const saveNotes = useCallback(async (videoId: string, notes: Descendant[]) => {
-    const userId = await getUserId();
-    if (!userId) return;
     // Don't save if notes are empty (just the initial empty paragraph)
     const firstNode = notes[0] as CustomElement;
     const isEmpty = notes.length === 1 &&
@@ -190,7 +174,6 @@ export default function LearnPage({ course, progress, module, courseId, initialL
     setNotesSaveStatus("saving");
     try {
       await videoProgressApi.saveProgress({
-        student_id: userId,
         video_id: videoId,
         notes: JSON.stringify(notes),
       });
@@ -199,7 +182,7 @@ export default function LearnPage({ course, progress, module, courseId, initialL
       console.error("Failed to save notes:", error);
       setNotesSaveStatus("idle");
     }
-  }, [getUserId]);
+  }, []);
 
   // Debounced auto-save triggered from onChange
   const handleEditorChange = useCallback((value: Descendant[]) => {

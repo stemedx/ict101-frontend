@@ -6,6 +6,10 @@ import { createEditor, Editor, Transforms, Element as SlateElement, Descendant, 
 import { Slate, Editable, withReact, ReactEditor, RenderElementProps, RenderLeafProps } from "slate-react";
 import { withHistory, HistoryEditor } from "slate-history";
 import { videoProgressApi } from "@/lib/services/api/video-progress";
+import type { LearnContent } from "@/locales/en/learn";
+import { CustomScrollbar } from "@/components/ui/scrollbar";
+import { useLanguage } from "@/context/language-context";
+import { getTranslations } from "@/locales";
 
 type CustomElement = {
   type: "paragraph" | "heading-two" | "heading-three" | "bulleted-list" | "numbered-list" | "list-item" | "block-quote" | "code-block";
@@ -58,9 +62,19 @@ interface LearnPageProps {
 
 export default function LearnPage({ course, progress, module, courseId, initialLessonId }: LearnPageProps) {
   const router = useRouter();
+  const { language } = useLanguage();
+  const content = getTranslations('learn', language) as LearnContent;
   const [currentLessonId, setCurrentLessonId] = useState(initialLessonId);
   const [activeTab, setActiveTab] = useState("notes");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Auto-collapse sidebar on small screens
+  useEffect(() => {
+    const handleResize = () => setSidebarCollapsed(window.innerWidth < 1024);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Video completion tracking
   const [completedVideos, setCompletedVideos] = useState<Set<string>>(
@@ -78,6 +92,7 @@ export default function LearnPage({ course, progress, module, courseId, initialL
 
   // Player.js ref
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null);
 
 
   // Slate editor — stable instance; key={currentLessonId} on <Slate> handles remounting
@@ -296,41 +311,34 @@ export default function LearnPage({ course, progress, module, courseId, initialL
   const isCurrentCompleted = completedVideos.has(currentLessonId);
 
   return (
-    <div className="min-h-screen bg-gray-900 flex">
+    <div className="h-[calc(100vh-7.5rem)] bg-gray-900 flex overflow-hidden">
       {/* Left Sidebar - Course Navigation */}
-      <div className={`${sidebarCollapsed ? 'w-16' : 'w-80'} bg-gray-800 border-r border-gray-700 flex-shrink-0 transition-all duration-300`}>
-        {/* Sidebar Header */}
-        <div className="p-4 border-b border-gray-700">
-          <div className="flex items-center justify-between">
+      <div className={`${sidebarCollapsed ? 'w-12' : 'w-80'} bg-gray-800 border-r border-gray-700 flex-shrink-0 transition-all duration-300 flex flex-col`}>
+        <div className="p-4 border-b border-gray-700 shrink-0">
+          <div className={`flex mb-4 ${sidebarCollapsed ? 'justify-center' : ''}`}>
             <button
               onClick={() => router.push(`/courses/${courseId}`)}
               className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors"
             >
               <span className="text-xl">←</span>
-              {!sidebarCollapsed && <span>Back to course page</span>}
-            </button>
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              <span className="text-xl">{sidebarCollapsed ? '»' : '«'}</span>
+              {!sidebarCollapsed && <span>{content.sidebar.backToCourse}</span>}
             </button>
           </div>
-
-          {!sidebarCollapsed && (
-            <div className="mt-4">
-              <h2 className="font-bold text-white text-lg mb-2">{course.title}</h2>
-            </div>
-          )}
+          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
+            {!sidebarCollapsed && <h2 className="font-bold text-white text-lg">{course.title}</h2>}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="text-gray-400 hover:text-white transition-colors p-1"
+            >
+              <span className="text-2xl">{sidebarCollapsed ? '☰' : '✕'}</span>
+            </button>
+          </div>
         </div>
 
-        {/* Module Videos */}
-        <div className="overflow-y-auto h-[calc(100vh-200px)]">
-          <div className="border-b border-gray-700">
+        {!sidebarCollapsed && (
+          <div className="overflow-y-auto flex-1">
             <div className="p-4">
-              <h3 className={`font-semibold mb-3 ${sidebarCollapsed ? 'text-xs' : 'text-sm'} text-gray-200`}>
-                {sidebarCollapsed ? `M${module.order}` : module.title}
-              </h3>
+              <h3 className="font-semibold mb-3 text-sm text-gray-200">{module.title}</h3>
               <div className="space-y-2">
                 {module.videos.map((video) => {
                   const isCompleted = completedVideos.has(video.id);
@@ -352,14 +360,12 @@ export default function LearnPage({ course, progress, module, courseId, initialL
                               video.type === 'quiz' ? '❓' :
                                 video.type === 'lab' ? '🧪' : '📄'}
                         </span>
-                        {!sidebarCollapsed && (
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{video.title}</p>
-                            {video.duration && (
-                              <p className="text-xs opacity-75">{video.duration} min</p>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{video.title}</p>
+                          {video.duration && (
+                            <p className="text-xs opacity-75">{video.duration} min</p>
+                          )}
+                        </div>
                       </div>
                     </button>
                   );
@@ -367,11 +373,12 @@ export default function LearnPage({ course, progress, module, courseId, initialL
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
+      <div ref={mainContentRef} className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+        <CustomScrollbar containerRef={mainContentRef} />
         {/* Progress Header */}
         <div className="bg-gray-800 border-b border-gray-700 p-4">
           <div className="flex items-center justify-between">
@@ -383,14 +390,13 @@ export default function LearnPage({ course, progress, module, courseId, initialL
                   style={{ width: `${progressPercentage}%` }}
                 ></div>
               </div>
-              <span className="text-sm text-gray-400">{completedVideos.size} of {progress.totalLessons} lessons completed</span>
+              <span className="text-sm text-gray-400">{completedVideos.size} {content.progress.of} {progress.totalLessons} {content.progress.lessonsCompleted}</span>
             </div>
           </div>
         </div>
 
         {/* Video Player */}
-        <div className="pt-10 flex justify-center">
-          <div className="w-1/2 aspect-video">
+        <div className="w-full aspect-video max-h-[65vh]">
             {currentLessonData?.videoUrl ? (
               <iframe
                 key={currentLessonId}
@@ -402,11 +408,10 @@ export default function LearnPage({ course, progress, module, courseId, initialL
                 allowFullScreen={true}
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
-                <p className="text-gray-400">No video available for this lesson</p>
+              <div className="w-full h-full flex items-center justify-center bg-gray-800">
+                <p className="text-gray-400">{content.video.noVideo}</p>
               </div>
             )}
-          </div>
         </div>
 
         {/* Action Buttons */}
@@ -416,7 +421,7 @@ export default function LearnPage({ course, progress, module, courseId, initialL
               onClick={() => setCurrentLessonId(currentLessonData.previousLessonId!)}
               className="px-5 py-2 border border-gray-500/50 text-gray-300 hover:bg-gray-500/10 text-sm font-medium rounded-lg transition-all"
             >
-              Previous Lesson
+              {content.actions.previousLesson}
             </button>
           )}
           <button
@@ -430,24 +435,24 @@ export default function LearnPage({ course, progress, module, courseId, initialL
                   : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white'
             }`}
           >
-            {isCurrentCompleted ? 'Completed' : isSaving ? 'Saving...' : 'Mark as Completed'}
+            {isCurrentCompleted ? content.actions.completed : isSaving ? content.actions.saving : content.actions.markAsCompleted}
           </button>
           {currentLessonData?.nextLessonId && (
             <button
               onClick={() => setCurrentLessonId(currentLessonData.nextLessonId!)}
               className="px-5 py-2 border border-purple-500/50 text-purple-300 hover:bg-purple-500/10 text-sm font-medium rounded-lg transition-all"
             >
-              Next Lesson
+              {content.actions.nextLesson}
             </button>
           )}
         </div>
 
         {/* Content Tabs */}
-        <div className="flex-1 bg-gray-900 flex flex-col">
+        <div className="bg-gray-900 flex flex-col">
           {/* Tab Headers */}
           <div className="border-b border-gray-700">
             <div className="flex">
-              {["notes", "discussions"].map((tab) => (
+              {(["notes", "discussions"] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -456,14 +461,14 @@ export default function LearnPage({ course, progress, module, courseId, initialL
                       : "text-gray-400 border-transparent hover:text-white"
                     }`}
                 >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  {content.tabs[tab]}
                 </button>
               ))}
             </div>
           </div>
 
           {/* Tab Content */}
-          <div className="flex-1 p-6 overflow-y-auto">
+          <div className="p-6 overflow-y-auto">
             {activeTab === "notes" && (
               <div className="text-gray-300">
                 <div className="bg-gray-800 rounded-lg p-4">
@@ -550,7 +555,7 @@ export default function LearnPage({ course, progress, module, courseId, initialL
                       <Editable
                         renderElement={renderElement}
                         renderLeaf={renderLeaf}
-                        placeholder="Start writing your notes here..."
+                        placeholder={content.notes.placeholder}
                         spellCheck
                       />
                     </div>
@@ -558,7 +563,7 @@ export default function LearnPage({ course, progress, module, courseId, initialL
                     <div className="flex items-center justify-end gap-2 pt-2">
                       {notesSaveStatus !== "idle" && (
                         <p className={`text-xs ${notesSaveStatus === "saving" ? "text-yellow-400" : "text-green-400"}`}>
-                          {notesSaveStatus === "saving" ? "Saving..." : "Saved"}
+                          {notesSaveStatus === "saving" ? content.notes.saving : content.notes.saved}
                         </p>
                       )}
                       <button
@@ -576,7 +581,7 @@ export default function LearnPage({ course, progress, module, courseId, initialL
                             : "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white"
                         }`}
                       >
-                        Save Notes
+                        {content.notes.saveNotes}
                       </button>
                     </div>
                   </Slate>
@@ -589,9 +594,9 @@ export default function LearnPage({ course, progress, module, courseId, initialL
                 <div className="bg-gray-800 rounded-lg p-6 text-center">
                   {module.discussionUrl ? (
                     <>
-                      <h4 className="font-semibold text-white mb-2">Join the Discussion</h4>
+                      <h4 className="font-semibold text-white mb-2">{content.discussions.joinTitle}</h4>
                       <p className="text-gray-400 text-sm mb-4">
-                        Ask questions, share insights, and connect with other learners in our community forum.
+                        {content.discussions.joinDescription}
                       </p>
                       <a
                         href={module.discussionUrl}
@@ -599,14 +604,14 @@ export default function LearnPage({ course, progress, module, courseId, initialL
                         rel="noopener noreferrer"
                         className="inline-block px-5 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white text-sm font-medium rounded-lg transition-all"
                       >
-                        Go to Discussions
+                        {content.discussions.goToDiscussions}
                       </a>
                     </>
                   ) : (
                     <>
-                      <h4 className="font-semibold text-white mb-2">Discussions</h4>
+                      <h4 className="font-semibold text-white mb-2">{content.discussions.title}</h4>
                       <p className="text-gray-400 text-sm">
-                        Discussions are not available for this module yet.
+                        {content.discussions.notAvailable}
                       </p>
                     </>
                   )}

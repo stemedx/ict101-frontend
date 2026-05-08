@@ -8,28 +8,35 @@ const THUMB_HEIGHT_RATIO = 0.2;
 
 type BarStyle = { height: number; top: number };
 
-export function CustomScrollbar() {
+interface CustomScrollbarProps {
+  containerRef?: React.RefObject<HTMLDivElement | null>;
+}
+
+export function CustomScrollbar({ containerRef }: CustomScrollbarProps = {}) {
   const [barStyle, setBarStyle] = useState<BarStyle>({ height: 0, top: 0 });
   const [isVisible, setIsVisible] = useState(false);
   const timeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
+    const getScrollInfo = () => {
+      if (containerRef?.current) {
+        const el = containerRef.current;
+        return { scrollY: el.scrollTop, scrollHeight: el.scrollHeight, viewport: el.clientHeight };
+      }
+      return {
+        scrollY: window.scrollY,
+        scrollHeight: document.documentElement.scrollHeight,
+        viewport: window.innerHeight,
+      };
+    };
+
     const updateScrollbar = () => {
-      const doc = document.documentElement;
-      const viewport = window.innerHeight;
-      const content = doc.scrollHeight;
-      
-      // Track height based on global ratio
+      const { scrollY, scrollHeight, viewport } = getScrollInfo();
+
       const trackHeight = viewport * TRACK_HEIGHT_RATIO;
-      
-      // Thumb height based on global ratio
       const thumbHeight = trackHeight * THUMB_HEIGHT_RATIO;
-
-      const scrollable = Math.max(0, content - viewport);
-      const scrollY = Math.max(0, window.scrollY);
-      const scrollPct = scrollable > 0 ? scrollY / scrollable : 0;
-
-      // Thumb position within track
+      const scrollable = Math.max(0, scrollHeight - viewport);
+      const scrollPct = scrollable > 0 ? Math.max(0, scrollY) / scrollable : 0;
       const thumbTop = scrollPct * (trackHeight - thumbHeight);
 
       setBarStyle({ height: thumbHeight, top: thumbTop });
@@ -39,32 +46,30 @@ export function CustomScrollbar() {
       timeoutRef.current = window.setTimeout(() => setIsVisible(false), 5000);
     };
 
-    // Listen for scroll + resize
-    window.addEventListener("scroll", updateScrollbar, { passive: true });
+    const target: EventTarget = containerRef?.current ?? window;
+    target.addEventListener("scroll", updateScrollbar, { passive: true });
     window.addEventListener("resize", updateScrollbar);
-
-    // initial
     updateScrollbar();
 
     return () => {
-      window.removeEventListener("scroll", updateScrollbar);
+      target.removeEventListener("scroll", updateScrollbar);
       window.removeEventListener("resize", updateScrollbar);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, []);
+  }, [containerRef]);
 
   const [trackHeight, setTrackHeight] = useState(200);
 
   useEffect(() => {
     const updateTrackHeight = () => {
-      setTrackHeight(window.innerHeight * TRACK_HEIGHT_RATIO);
+      const viewport = containerRef?.current?.clientHeight ?? window.innerHeight;
+      setTrackHeight(viewport * TRACK_HEIGHT_RATIO);
     };
-    
+
     updateTrackHeight();
-    window.addEventListener('resize', updateTrackHeight);
-    
-    return () => window.removeEventListener('resize', updateTrackHeight);
-  }, []);
+    window.addEventListener("resize", updateTrackHeight);
+    return () => window.removeEventListener("resize", updateTrackHeight);
+  }, [containerRef]);
 
   return (
     <div

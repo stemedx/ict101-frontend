@@ -25,7 +25,7 @@ export async function serverApiRequest<T>(
   };
 
   try {
-    const response = await fetch(url, config);
+    const response = await fetch(url, { ...config, next: { revalidate: 300 } });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);

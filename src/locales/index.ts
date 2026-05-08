@@ -19,6 +19,8 @@ import { pricingContent as enPricingContent } from './en/pricing';
 import { pricingContent as siPricingContent } from './si/pricing';
 import { coursesContent as enCoursesContent } from './en/courses';
 import { coursesContent as siCoursesContent } from './si/courses';
+import { learnContent as enLearnContent } from './en/learn';
+import { learnContent as siLearnContent } from './si/learn';
 
 export const translations = {
   en: {
@@ -32,6 +34,7 @@ export const translations = {
     footer: enFooterContent,
     pricing: enPricingContent,
     courses: enCoursesContent,
+    learn: enLearnContent,
   },
   si: {
     reachus: siReachusContent,
@@ -44,6 +47,7 @@ export const translations = {
     footer: siFooterContent,
     pricing: siPricingContent,
     courses: siCoursesContent,
+    learn: siLearnContent,
   }
 };
 

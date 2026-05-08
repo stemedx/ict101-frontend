@@ -65,13 +65,13 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-/* Hide default scrollbar */
-html {
+/* Hide default scrollbar globally */
+*, html {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
-html::-webkit-scrollbar {
+*::-webkit-scrollbar {
   display: none;
 }
 

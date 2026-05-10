@@ -1,38 +1,46 @@
 import "./globals.css";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { CustomScrollbar } from "@/components/ui/scrollbar";
 import { EmailVerificationBanner } from "@/components/ui/email-verification-banner";
 import { LanguageProvider } from "@/context/language-context";
 import { getServerLanguage } from "@/locales";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { BRAND } from "@/lib/constants/brand";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
-  title: BRAND.metaTitle,
+  title: {
+    default: BRAND.metaTitle,
+    template: `%s`,
+  },
   description: BRAND.metaDescription,
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true },
+  },
   openGraph: {
     title: BRAND.metaTitle,
     description: BRAND.metaDescription,
     url: BRAND.website,
     siteName: BRAND.name,
-    images: [
-      {
-        url: `${BRAND.website}/og-image.png`,
-        width: 1200,
-        height: 630,
-        alt: BRAND.name,
-      },
-    ],
     locale: "en_US",
     type: "website",
   },
@@ -40,7 +48,6 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: BRAND.metaTitle,
     description: BRAND.metaDescription,
-    images: [`${BRAND.website}/og-image.png`],
   },
 };
 
@@ -52,17 +59,39 @@ export default async function RootLayout({
   const initialLanguage = await getServerLanguage();
   return (
     <html lang="en" className="h-full">
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </head>
+      <head />
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased h-full flex flex-col bg-black`}
       >
+          <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@graph": [
+                {
+                  "@type": "WebSite",
+                  "name": BRAND.name,
+                  "url": BRAND.website,
+                },
+                {
+                  "@type": "Organization",
+                  "name": BRAND.name,
+                  "url": BRAND.website,
+                  "logo": `${BRAND.website}/opengraph-image`,
+                  "email": BRAND.supportEmail,
+                  "sameAs": Object.values(BRAND.social),
+                },
+              ],
+            }),
+          }}
+        />
           <CustomScrollbar />
           <EmailVerificationBanner />
           <LanguageProvider initialLanguage={initialLanguage}>
             {children}
           </LanguageProvider>
+          <SpeedInsights />
       </body>
     </html>
   );

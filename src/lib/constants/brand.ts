@@ -24,7 +24,7 @@ export const BRAND = {
   supportEmail: "support@ict101.com",
 
   /** Canonical website URL (no trailing slash) */
-  website: "https://ict101.com",
+  website: "https://ict101.accivion.com",
 
   /** Social-media handle slugs – used to build full URLs in locale files */
   social: {

@@ -46,13 +46,13 @@ export const metadata: Metadata = {
     siteName: BRAND.name,
     locale: "en_US",
     type: "website",
-    images: [{ url: `${BRAND.website}/opengraph-image`, width: 1200, height: 630, alt: BRAND.name }],
+    images: [{ url: `${BRAND.website}/og-image.png`, width: 1200, height: 630, alt: BRAND.name }],
   },
   twitter: {
     card: "summary_large_image",
     title: BRAND.metaTitle,
     description: BRAND.metaDescription,
-    images: [`${BRAND.website}/opengraph-image`],
+    images: [`${BRAND.website}/og-image.png`],
   },
 };
 
@@ -83,7 +83,7 @@ export default async function RootLayout({
                   "@type": "Organization",
                   "name": BRAND.name,
                   "url": BRAND.website,
-                  "logo": `${BRAND.website}/opengraph-image`,
+                  "logo": `${BRAND.website}/og-image.png`,
                   "email": BRAND.supportEmail,
                   "sameAs": Object.values(BRAND.social),
                 },

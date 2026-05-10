@@ -31,6 +31,9 @@ export const metadata: Metadata = {
     template: `%s`,
   },
   description: BRAND.metaDescription,
+  verification: {
+    google: "1efzqvn0YB_Cg604jV20hT7r5-qB1L7awmkiKbVGijM",
+  },
   robots: {
     index: true,
     follow: true,

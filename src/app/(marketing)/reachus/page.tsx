@@ -11,6 +11,11 @@ export const metadata: Metadata = {
     description: "Get in touch with the ICT101 team. We're here to help with questions about courses, payments, and technical support.",
     url: `${BRAND.website}/reachus`,
     type: "website",
+    images: [{ url: `${BRAND.website}/opengraph-image`, width: 1200, height: 630, alt: BRAND.name }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [`${BRAND.website}/opengraph-image`],
   },
 };
 

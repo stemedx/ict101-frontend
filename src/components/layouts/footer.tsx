@@ -3,23 +3,20 @@
 import Link from "next/link";
 import { getTranslations } from "@/locales";
 import { useLanguage } from "@/context/language-context";
-import { FaFacebook, FaWhatsapp, FaTelegram } from "react-icons/fa";
+import { FaFacebook, FaWhatsapp } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import { BRAND } from "@/lib/constants/brand";
 
-// Icon mapping with react-icons
 const iconMap = {
   Facebook: FaFacebook,
   X: FaXTwitter,
   MessageCircle: FaWhatsapp,
-  Send: FaTelegram,
 };
 
 const socialLinks = [
   { name: "Facebook", icon: "Facebook", url: BRAND.social.facebook },
   { name: "X (Twitter)", icon: "X", url: BRAND.social.twitter },
   { name: "WhatsApp", icon: "MessageCircle", url: BRAND.social.whatsapp },
-  { name: "Telegram", icon: "Send", url: BRAND.social.telegram },
 ];
 
 export function Footer() {

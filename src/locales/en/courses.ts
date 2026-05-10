@@ -39,8 +39,7 @@ export const coursesContent = {
       paymentReference: "Your Payment Reference",
       copy: "Copy",
       copied: "Copied",
-      whatsapp: "WhatsApp",
-      telegram: "Telegram"
+      whatsapp: "WhatsApp"
     }
   }
 };

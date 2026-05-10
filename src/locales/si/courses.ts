@@ -39,8 +39,7 @@ export const coursesContent = {
       paymentReference: "ඔබේ ගෙවීම් යොමුව",
       copy: "පිටපත් කරන්න",
       copied: "පිටපත් කළා",
-      whatsapp: "WhatsApp",
-      telegram: "Telegram"
+      whatsapp: "WhatsApp"
     }
   }
 };

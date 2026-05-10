@@ -28,10 +28,9 @@ export const BRAND = {
 
   /** Social-media handle slugs – used to build full URLs in locale files */
   social: {
-    facebook: "https://facebook.com/ict101",
-    twitter: "https://x.com/ict101",
-    whatsapp: "https://wa.me/ict101",
-    telegram: "https://t.me/ict101",
+    facebook: "https://www.facebook.com/share/1EQNqiasPA/?mibextid=wwXIfr",
+    twitter: "https://x.com/ict101lk",
+    whatsapp: "https://wa.me/message/5EYTQ2WWBKOOK1",
   },
 
   /** Payment support contact links */

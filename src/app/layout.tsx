@@ -46,11 +46,13 @@ export const metadata: Metadata = {
     siteName: BRAND.name,
     locale: "en_US",
     type: "website",
+    images: [{ url: `${BRAND.website}/opengraph-image`, width: 1200, height: 630, alt: BRAND.name }],
   },
   twitter: {
     card: "summary_large_image",
     title: BRAND.metaTitle,
     description: BRAND.metaDescription,
+    images: [`${BRAND.website}/opengraph-image`],
   },
 };
 

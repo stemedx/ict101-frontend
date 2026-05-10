@@ -5,6 +5,10 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {
+        userAgent: ["facebookexternalhit", "Twitterbot", "LinkedInBot", "WhatsApp"],
+        allow: "/",
+      },
+      {
         userAgent: "*",
         allow: ["/", "/courses", "/pricing", "/reachus"],
         disallow: [

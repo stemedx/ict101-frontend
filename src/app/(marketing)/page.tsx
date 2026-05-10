@@ -12,6 +12,11 @@ export const metadata: Metadata = {
     description: "Learn ICT, programming, and digital skills with ICT101's interactive courses. Expert-led lessons, hands-on labs, and structured learning paths.",
     url: BRAND.website,
     type: "website",
+    images: [{ url: `${BRAND.website}/opengraph-image`, width: 1200, height: 630, alt: BRAND.name }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [`${BRAND.website}/opengraph-image`],
   },
 };
 

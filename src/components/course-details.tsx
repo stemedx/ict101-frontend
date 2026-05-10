@@ -160,6 +160,9 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
                 <img
                   src={instructor.profileImageUrl}
                   alt={`${instructor.firstName} ${instructor.lastName}`}
+                  width={64}
+                  height={64}
+                  loading="lazy"
                   className="w-16 h-16 rounded-full object-cover shrink-0"
                 />
               ) : (

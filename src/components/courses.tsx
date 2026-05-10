@@ -123,6 +123,7 @@ export default function Courses({ isAuthenticated }: CoursesProps) {
                           <img
                             src={course.thumbnailUrl}
                             alt={course.title}
+                            loading="lazy"
                             className="w-full h-full object-cover"
                           />
                         ) : (

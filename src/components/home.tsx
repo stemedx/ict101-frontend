@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
 import { getTranslations } from "@/locales";
 import { useLanguage } from "@/context/language-context";
 import { useRouter } from "next/navigation";
@@ -167,9 +168,11 @@ export default function Home({ isAuthenticated }: HomeProps) {
             </div>
 
             <div className="order-1 lg:order-2">
-              <img
+              <Image
                 src="/bg-image.png"
                 alt="STEM Learning Workspace"
+                width={800}
+                height={600}
                 className="w-full h-auto rounded-2xl shadow-2xl"
               />
             </div>

@@ -1,5 +1,19 @@
 import { createClient } from "@/lib/services/auth/server";
 import Courses from "@/components/courses";
+import type { Metadata } from "next";
+import { BRAND } from "@/lib/constants/brand";
+
+export const metadata: Metadata = {
+  title: `Browse Courses – ${BRAND.name}`,
+  description: "Explore all ICT101 courses covering programming, networking, cybersecurity, and more. Start your ICT learning journey today.",
+  alternates: { canonical: `${BRAND.website}/courses` },
+  openGraph: {
+    title: `Browse Courses – ${BRAND.name}`,
+    description: "Explore all ICT101 courses covering programming, networking, cybersecurity, and more. Start your ICT learning journey today.",
+    url: `${BRAND.website}/courses`,
+    type: "website",
+  },
+};
 
 export default async function CoursesPage() {
   const supabase = await createClient();

@@ -1,6 +1,7 @@
 import { MetadataRoute } from "next";
 import { BRAND } from "@/lib/constants/brand";
-import { coursesServerApi } from "@/lib/services/api/courses-server";
+import { API_CONFIG } from "@/lib/constants/api";
+import type { Course } from "@/lib/types/courses";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = BRAND.website;
@@ -33,7 +34,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    const courses = await coursesServerApi.getAll();
+    const res = await fetch(`${process.env.API_BASE_URL}${API_CONFIG.ENDPOINTS.COURSES}`, {
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return staticRoutes;
+    const courses: Course[] = await res.json();
     const courseRoutes: MetadataRoute.Sitemap = courses.map((course) => ({
       url: `${baseUrl}/courses/${course.id}`,
       lastModified: course.updated_at ? new Date(course.updated_at) : new Date(),

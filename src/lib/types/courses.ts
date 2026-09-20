@@ -77,7 +77,17 @@ export interface CourseDetailsModule {
   duration: number;
   videoCount: number;
   videos: CourseDetailsVideo[];
-  isPurchased: boolean;
+  access: {
+    status: 'GRANTED' | 'LOCKED';
+    source: 'MODULE_PURCHASE' | 'COURSE_PURCHASE' | 'BUNDLE_PURCHASE' | 'PLATFORM_ACCESS' | 'SUBSCRIPTION' | null;
+    expiresAt: string | null;
+  };
+  purchase: {
+    kind: 'CONTENT_ONETIME';
+    method: 'CARD' | 'BANK_TRANSFER' | 'FREE' | null;
+    status: 'NONE' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+    purchasedAt: string | null;
+  };
   productId: string;
   price: number;
   isFree: boolean;
@@ -108,6 +118,17 @@ export interface CourseDetailsResponse {
     grade: string;
   };
   instructor: CourseDetailsInstructor;
+  fullPlatformAccess: {
+    status: 'ACTIVE' | 'NONE';
+    source: 'PLATFORM_ACCESS' | 'SUBSCRIPTION' | null;
+    expiresAt: string | null;
+  };
+  fullPlatformPurchase: {
+    kind: 'PLATFORM_ACCESS_ONEMONTH';
+    method: 'CARD' | 'BANK_TRANSFER' | null;
+    status: 'NONE' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+    purchasedAt: string | null;
+  };
   totalModules: number;
   modules: CourseDetailsModule[];
 }

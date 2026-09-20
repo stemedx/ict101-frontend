@@ -14,7 +14,7 @@ export const coursesServerApi = {
     return serverApiRequest<Course>(`${API_CONFIG.ENDPOINTS.COURSES}/${id}`, {}, { revalidate: 300 });
   },
 
-  // Get course details — no cache, isPurchased must always be fresh
+  // Get course details — no cache, access and purchase state must always be fresh
   getDetails: (id: string): Promise<CourseDetailsResponse> => {
     return serverApiRequest<CourseDetailsResponse>(`${API_CONFIG.ENDPOINTS.COURSES}/${id}`);
   },

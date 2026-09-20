@@ -1,17 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/context/language-context";
 import { getTranslations } from "@/locales";
 import { coursesContent } from "@/locales/en/courses";
 import { CourseDetailsResponse } from "@/lib/types/courses";
 import { purchasesApi } from "@/lib/services/api/purchases";
+import { courseProductsApi, PlatformAccessProduct } from "@/lib/services/api/course-products";
 import { BRAND } from "@/lib/constants/brand";
 
 interface CourseDetailClientProps {
   course: CourseDetailsResponse;
 }
+
+const EMPTY_FULL_PLATFORM_ACCESS = {
+  status: 'NONE' as const,
+  source: null,
+  expiresAt: null,
+};
+
+const EMPTY_FULL_PLATFORM_PURCHASE = {
+  kind: 'PLATFORM_ACCESS_ONEMONTH' as const,
+  method: null,
+  status: 'NONE' as const,
+  purchasedAt: null,
+};
 
 export default function CourseOverview({ course }: CourseDetailClientProps) {
   const router = useRouter();
@@ -25,6 +39,11 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
   const [paymentOption, setPaymentOption] = useState<'module' | 'platform' | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'bank' | null>(null);
   const [enrollingModuleId, setEnrollingModuleId] = useState<string | null>(null);
+  const [platformProduct, setPlatformProduct] = useState<PlatformAccessProduct | null>(null);
+  const [platformProductLoading, setPlatformProductLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [bankPaymentReference, setBankPaymentReference] = useState<string | null>(null);
+  const [copiedReference, setCopiedReference] = useState(false);
 
   const resetModalState = () => {
     setShowPurchaseModal(false);
@@ -32,16 +51,46 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
     setIsProcessing(false);
     setPaymentOption(null);
     setPaymentMethod(null);
+    setPaymentError(null);
+    setBankPaymentReference(null);
+    setCopiedReference(false);
   };
 
   const openPurchaseModal = (productId: string) => {
     setSelectedProductId(productId);
     setPaymentOption(null);
     setPaymentMethod(null);
+    setPaymentError(null);
+    setBankPaymentReference(null);
+    setCopiedReference(false);
     setShowPurchaseModal(true);
   };
 
+  const courseWithLegacyFields = course as CourseDetailsResponse & {
+    hasFullAccess?: boolean;
+    fullAccessExpiresAt?: string | null;
+  };
+  const fullPlatformAccess = course.fullPlatformAccess ?? (
+    courseWithLegacyFields.hasFullAccess
+      ? {
+        status: 'ACTIVE' as const,
+        source: 'PLATFORM_ACCESS' as const,
+        expiresAt: courseWithLegacyFields.fullAccessExpiresAt ?? null,
+      }
+      : EMPTY_FULL_PLATFORM_ACCESS
+  );
+  const fullPlatformPurchase = course.fullPlatformPurchase ?? EMPTY_FULL_PLATFORM_PURCHASE;
+  const hasActiveFullPlatformAccess = fullPlatformAccess.status === 'ACTIVE';
+  const hasPendingBankPlatformPurchase = (
+    fullPlatformPurchase.status === 'PENDING' &&
+    fullPlatformPurchase.method === 'BANK_TRANSFER'
+  );
+
   const togglePaymentOption = (option: 'module' | 'platform') => {
+    if (option === 'platform' && (hasActiveFullPlatformAccess || hasPendingBankPlatformPurchase)) return;
+    setPaymentError(null);
+    setBankPaymentReference(null);
+    setCopiedReference(false);
     if (paymentOption === option) {
       setPaymentOption(null);
       setPaymentMethod(null);
@@ -51,12 +100,45 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
     }
   };
 
+  useEffect(() => {
+    if (!showPurchaseModal || platformProduct || platformProductLoading) return;
+
+    let mounted = true;
+    setPlatformProductLoading(true);
+    courseProductsApi.getPlatformAccessProduct()
+      .then((product) => {
+        if (mounted) setPlatformProduct(product);
+      })
+      .catch((error) => {
+        console.error('Failed to fetch platform access product:', error);
+      })
+      .finally(() => {
+        if (mounted) setPlatformProductLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [showPurchaseModal, platformProduct, platformProductLoading]);
+
+  const getSelectedPaymentProductId = () => {
+    if (paymentOption === 'platform') return platformProduct?.id ?? null;
+    if (paymentOption === 'module') return selectedProductId;
+    return null;
+  };
+
+  const getSelectedTransferType = () => (
+    paymentOption === 'platform' ? 'platform-access' as const : 'one-time' as const
+  );
+
   const handleCardPayment = async () => {
-    if (!selectedProductId || isProcessing) return;
+    const productId = getSelectedPaymentProductId();
+    if (!productId || isProcessing || (paymentOption === 'platform' && (hasActiveFullPlatformAccess || hasPendingBankPlatformPurchase))) return;
     setIsProcessing(true);
+    setPaymentError(null);
     try {
       const { checkout_url, free } = await purchasesApi.createOrder({
-        product_id: selectedProductId,
+        product_id: productId,
       });
       if (free) {
         resetModalState();
@@ -66,8 +148,37 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
       }
     } catch (error) {
       console.error('Failed to create order:', error);
+      setPaymentError(t.modal.paymentError);
       setIsProcessing(false);
     }
+  };
+
+  const handleBankTransfer = async () => {
+    const productId = getSelectedPaymentProductId();
+    if (!productId || isProcessing || (paymentOption === 'platform' && (hasActiveFullPlatformAccess || hasPendingBankPlatformPurchase))) return;
+    setIsProcessing(true);
+    setPaymentError(null);
+    setBankPaymentReference(null);
+    setCopiedReference(false);
+    try {
+      const { payment_reference } = await purchasesApi.createBankPaymentOrder({
+        product_id: productId,
+        transfer_type: getSelectedTransferType(),
+      });
+      setBankPaymentReference(payment_reference);
+      window.open(BRAND.payment.whatsappChat, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error('Failed to create bank payment order:', error);
+      setPaymentError(t.modal.paymentError);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const copyBankReference = async () => {
+    if (!bankPaymentReference) return;
+    await navigator.clipboard.writeText(bankPaymentReference);
+    setCopiedReference(true);
   };
 
   const handleFreeEnroll = async (productId: string, moduleId: string) => {
@@ -103,6 +214,113 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
 
   const ensureUrl = (url: string) =>
     url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`;
+
+  const formatPrice = (price: number | string) => {
+    const value = Number(price);
+    if (!Number.isFinite(value)) return '';
+    return `LKR ${value.toLocaleString('en-LK', { maximumFractionDigits: 0 })}`;
+  };
+
+  const renderPaymentMethods = (option: 'module' | 'platform') => {
+    if (paymentOption !== option) return null;
+
+    const productReady = option === 'module' ? !!selectedProductId : !!platformProduct;
+    const bankButtonText = isProcessing ? t.modal.processing : t.modal.openWhatsapp;
+
+    return (
+      <div className="px-5 pb-4 space-y-3">
+        <div className={`border rounded-lg overflow-hidden transition-colors ${paymentMethod === 'card' ? 'border-blue-500/40 bg-blue-500/5' : 'border-white/10'}`}>
+          <button
+            onClick={() => {
+              setPaymentMethod(paymentMethod === 'card' ? null : 'card');
+              setPaymentError(null);
+              setBankPaymentReference(null);
+            }}
+            className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-white/5 transition-colors"
+          >
+            <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-white text-sm font-medium">{t.modal.cardPayment}</p>
+              <p className="text-xs text-gray-500">{t.modal.cardPaymentDesc}</p>
+            </div>
+            <svg className={`w-4 h-4 text-gray-500 transition-transform ${paymentMethod === 'card' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {paymentMethod === 'card' && (
+            <div className="px-4 pb-4">
+              <p className="text-sm text-gray-400 mb-1">{t.modal.cardRedirect}</p>
+              <p className="text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-2 py-1 mb-3 inline-block">{t.modal.cardDetailsNotSaved}</p>
+              <button
+                onClick={handleCardPayment}
+                disabled={isProcessing || !productReady}
+                className="w-full bg-primary-gradient border border-purple-500/30 rounded-lg py-3 text-center font-semibold text-white text-sm transition-all duration-200 hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isProcessing ? t.modal.processing : t.modal.proceedToPayment}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className={`border rounded-lg overflow-hidden transition-colors ${paymentMethod === 'bank' ? 'border-green-500/40 bg-green-500/5' : 'border-white/10'}`}>
+          <button
+            onClick={() => {
+              setPaymentMethod(paymentMethod === 'bank' ? null : 'bank');
+              setPaymentError(null);
+            }}
+            className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-white/5 transition-colors"
+          >
+            <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-white text-sm font-medium">{t.modal.bankTransfer}</p>
+              <p className="text-xs text-gray-500">{t.modal.bankTransferDesc}</p>
+            </div>
+            <svg className={`w-4 h-4 text-gray-500 transition-transform ${paymentMethod === 'bank' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {paymentMethod === 'bank' && (
+            <div className="px-4 pb-4 space-y-3">
+              {bankPaymentReference && (
+                <div className="rounded-lg border border-green-500/25 bg-green-500/10 p-3">
+                  <p className="text-xs text-green-200 mb-2">{t.modal.paymentReference}</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-sm text-white break-all">{bankPaymentReference}</code>
+                    <button
+                      onClick={copyBankReference}
+                      className="shrink-0 rounded-md border border-white/15 px-3 py-1 text-xs text-white hover:bg-white/10"
+                    >
+                      {copiedReference ? t.modal.copied : t.modal.copy}
+                    </button>
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={handleBankTransfer}
+                disabled={isProcessing || !productReady}
+                className="w-full bg-green-600/80 hover:bg-green-600 border border-green-500/40 rounded-lg py-3 flex items-center justify-center gap-2 font-semibold text-white text-sm transition-all duration-200 hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                </svg>
+                {bankButtonText}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const markdownToHtml = (md: string) =>
     md
@@ -265,7 +483,27 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
         <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 sm:p-8">
           <h3 className="text-2xl md:text-3xl font-bold text-white mb-6">{t.courseContent}</h3>
           <div className="space-y-3">
-            {course.modules.map((module, moduleIndex) => (
+            {course.modules.map((module, moduleIndex) => {
+              const legacyModule = module as typeof module & {
+                hasAccess?: boolean;
+                isPurchased?: boolean;
+              };
+              const access = module.access ?? {
+                status: (legacyModule.hasAccess ?? legacyModule.isPurchased) ? 'GRANTED' as const : 'LOCKED' as const,
+                source: null,
+                expiresAt: null,
+              };
+              const purchase = module.purchase ?? {
+                kind: 'CONTENT_ONETIME' as const,
+                method: null,
+                status: legacyModule.isPurchased ? 'PAID' as const : 'NONE' as const,
+                purchasedAt: null,
+              };
+              const hasAccess = access.status === 'GRANTED';
+              const purchasePending = purchase.status === 'PENDING' && purchase.method === 'BANK_TRANSFER';
+              const purchasePaid = purchase.status === 'PAID';
+
+              return (
               <div
                 key={module.id}
                 className="border border-white/10 rounded-xl overflow-hidden"
@@ -292,7 +530,7 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
                     <span className="text-xs text-gray-400">
                       {module.videoCount} {t.videos} • {module.duration} {t.min}
                     </span>
-                    {module.isPurchased ? (
+                    {hasAccess ? (
                       <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
                       </svg>
@@ -310,9 +548,9 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
                     {module.videos.map((video) => (
                       <button
                         key={video.id}
-                        onClick={() => module.isPurchased && navigateToModule(module.id)}
+                        onClick={() => hasAccess && navigateToModule(module.id)}
                         className={`w-full px-8 py-3 transition-colors flex items-center justify-between group ${
-                          module.isPurchased ? 'hover:bg-white/10 cursor-pointer' : 'opacity-60 cursor-default'
+                          hasAccess ? 'hover:bg-white/10 cursor-pointer' : 'opacity-60 cursor-default'
                         }`}
                       >
                         <div className="flex items-center gap-3">
@@ -335,15 +573,16 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
                     ))}
 
                     {/* Action Button */}
-                    <div className="p-4 border-t border-white/10 flex justify-end">
-                      {module.isPurchased ? (
+                    <div className="p-4 border-t border-white/10 flex flex-wrap justify-end gap-3">
+                      {hasAccess && (
                         <button
                           onClick={() => navigateToModule(module.id)}
                           className="glow-on-hover !border-white/30 text-white px-6 py-2 rounded-full font-semibold text-sm transition-all duration-300 hover:scale-105"
                         >
                           {t.startLearning}
                         </button>
-                      ) : module.isFree ? (
+                      )}
+                      {!hasAccess && module.isFree ? (
                         <button
                           onClick={() => handleFreeEnroll(module.productId, module.id)}
                           disabled={enrollingModuleId === module.id}
@@ -351,7 +590,24 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
                         >
                           {enrollingModuleId === module.id ? t.modal.processing : t.enrollFree}
                         </button>
-                      ) : (
+                      ) : null}
+                      {purchasePending && (
+                        <button
+                          disabled
+                          className="glow-on-hover !border-white/20 text-white/70 px-6 py-2 rounded-full font-semibold text-sm transition-all duration-300 disabled:cursor-not-allowed"
+                        >
+                          {t.modal.paymentPending}
+                        </button>
+                      )}
+                      {!hasAccess && purchasePaid && (
+                        <button
+                          disabled
+                          className="glow-on-hover !border-white/20 text-white/70 px-6 py-2 rounded-full font-semibold text-sm transition-all duration-300 disabled:cursor-not-allowed"
+                        >
+                          {t.modal.paymentReceived}
+                        </button>
+                      )}
+                      {!purchasePaid && !purchasePending && !module.isFree && (
                         <button
                           onClick={() => openPurchaseModal(module.productId)}
                           className="glow-on-hover !border-white/30 text-white px-6 py-2 rounded-full font-semibold text-sm transition-all duration-300 hover:scale-105"
@@ -363,7 +619,8 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -412,84 +669,47 @@ export default function CourseOverview({ course }: CourseDetailClientProps) {
                   </svg>
                 </button>
 
-                {paymentOption === 'module' && (
-                  <div className="px-5 pb-4 space-y-3">
-                    {/* Card sub-option */}
-                    <div className={`border rounded-lg overflow-hidden transition-colors ${paymentMethod === 'card' ? 'border-blue-500/40 bg-blue-500/5' : 'border-white/10'}`}>
-                      <button
-                        onClick={() => setPaymentMethod(paymentMethod === 'card' ? null : 'card')}
-                        className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-white/5 transition-colors"
-                      >
-                        <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center shrink-0">
-                          <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                          </svg>
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-white text-sm font-medium">{t.modal.cardPayment}</p>
-                          <p className="text-xs text-gray-500">{t.modal.cardPaymentDesc}</p>
-                        </div>
-                        <svg className={`w-4 h-4 text-gray-500 transition-transform ${paymentMethod === 'card' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-
-                      {paymentMethod === 'card' && (
-                        <div className="px-4 pb-4">
-                          <p className="text-sm text-gray-400 mb-1">{t.modal.cardRedirect}</p>
-                          <p className="text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-2 py-1 mb-3 inline-block">{t.modal.cardDetailsNotSaved}</p>
-                          <button
-                            onClick={handleCardPayment}
-                            disabled={isProcessing}
-                            className="w-full bg-primary-gradient border border-purple-500/30 rounded-lg py-3 text-center font-semibold text-white text-sm transition-all duration-200 hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isProcessing ? t.modal.processing : t.modal.proceedToPayment}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Bank Transfer sub-option */}
-                    <div className={`border rounded-lg overflow-hidden transition-colors ${paymentMethod === 'bank' ? 'border-green-500/40 bg-green-500/5' : 'border-white/10'}`}>
-                      <button
-                        onClick={() => setPaymentMethod(paymentMethod === 'bank' ? null : 'bank')}
-                        className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-white/5 transition-colors"
-                      >
-                        <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center shrink-0">
-                          <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                          </svg>
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-white text-sm font-medium">{t.modal.bankTransfer}</p>
-                          <p className="text-xs text-gray-500">{t.modal.bankTransferDesc}</p>
-                        </div>
-                        <svg className={`w-4 h-4 text-gray-500 transition-transform ${paymentMethod === 'bank' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-
-                      {paymentMethod === 'bank' && (
-                        <div className="px-4 pb-4 space-y-3">
-                          {/* WhatsApp Chat */}
-                          <a
-                            href={BRAND.payment.whatsappChat}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full bg-green-600/80 hover:bg-green-600 border border-green-500/40 rounded-lg py-3 flex items-center justify-center gap-2 font-semibold text-white text-sm transition-all duration-200 hover:scale-[1.01]"
-                          >
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                            </svg>
-                            {t.modal.whatsappChatButton}
-                          </a>
-
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                {renderPaymentMethods('module')}
               </div>
+
+              <div className={`border rounded-xl overflow-hidden transition-colors ${paymentOption === 'platform' ? 'border-purple-500/50 bg-white/5' : 'border-white/15'} ${hasActiveFullPlatformAccess || hasPendingBankPlatformPurchase ? 'opacity-60' : ''}`}>
+                <button
+                  onClick={() => togglePaymentOption('platform')}
+                  disabled={hasActiveFullPlatformAccess || hasPendingBankPlatformPurchase}
+                  className="w-full px-5 py-4 text-left flex items-center gap-4 hover:bg-white/5 transition-colors disabled:cursor-not-allowed"
+                >
+                  <div className="w-10 h-10 bg-cyan-500/20 rounded-lg flex items-center justify-center shrink-0">
+                    <svg className="w-5 h-5 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 16v-2m8-6h2M2 12h2m14.95 6.95 1.414 1.414M3.636 3.636 5.05 5.05m13.9-1.414L17.536 5.05M3.636 20.364 5.05 18.95M8 12a4 4 0 108 0 4 4 0 00-8 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-white font-semibold">{t.modal.buyPlatform}</p>
+                    <p className="text-sm text-gray-400">
+                      {hasActiveFullPlatformAccess
+                        ? `${t.modal.platformActive}${fullPlatformAccess.expiresAt ? ` ${new Date(fullPlatformAccess.expiresAt).toLocaleDateString()}` : ''}`
+                        : hasPendingBankPlatformPurchase
+                          ? t.modal.paymentPending
+                        : platformProduct
+                          ? `${t.modal.buyPlatformDesc} • ${formatPrice(platformProduct.price)}`
+                          : platformProductLoading
+                            ? t.modal.platformLoading
+                            : t.modal.platformUnavailable}
+                    </p>
+                  </div>
+                  <svg className={`w-5 h-5 text-gray-400 transition-transform ${paymentOption === 'platform' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {renderPaymentMethods('platform')}
+              </div>
+
+              {paymentError && (
+                <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                  {paymentError}
+                </p>
+              )}
             </div>
           </div>
         </div>

@@ -37,6 +37,8 @@ interface Module {
 }
 
 interface ModulesResponse {
+  has_full_access: boolean;
+  full_access_expires_at: string | null;
   has_active_subscription: boolean;
   subscription_expires_at: string | null;
   modules: Module[];
@@ -87,8 +89,8 @@ export function Profile({ initialUser }: ProfileProps) {
   const fetchModules = async () => {
     try {
       const data = await apiRequest<ModulesResponse>("/v1/students/modules");
-      setHasSubscription(data.has_active_subscription);
-      setSubscriptionExpiry(data.subscription_expires_at);
+      setHasSubscription(data.has_full_access);
+      setSubscriptionExpiry(data.full_access_expires_at);
       setModules(data.modules || []);
     } catch {
       setModules([]);

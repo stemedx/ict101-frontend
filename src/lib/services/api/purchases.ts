@@ -10,9 +10,24 @@ export interface CreateOrderResponse {
   free: boolean;
 }
 
+export interface CreateBankPaymentOrderRequest {
+  product_id: string;
+  transfer_type: 'one-time' | 'subscription' | 'platform-access';
+}
+
+export interface CreateBankPaymentOrderResponse {
+  payment_reference: string;
+}
+
 export const purchasesApi = {
   createOrder: async (data: CreateOrderRequest): Promise<CreateOrderResponse> => {
     return apiRequest<CreateOrderResponse>(API_CONFIG.ENDPOINTS.CREATE_ORDER, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  createBankPaymentOrder: async (data: CreateBankPaymentOrderRequest): Promise<CreateBankPaymentOrderResponse> => {
+    return apiRequest<CreateBankPaymentOrderResponse>(API_CONFIG.ENDPOINTS.BANK_PAYMENT_ORDER, {
       method: 'POST',
       body: JSON.stringify(data),
     });
